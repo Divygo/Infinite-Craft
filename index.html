@@ -1,0 +1,648 @@
+Index.html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DIVYGO.FUN - Infinite Element Crafting</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css">
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+        
+        .element {
+            background: linear-gradient(145deg, #f0f0f0, #cacaca);
+            border-radius: 12px;
+            padding: 8px 16px;
+            margin: 4px;
+            cursor: grab;
+            user-select: none;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            transition: all 0.2s ease;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            font-weight: 500;
+        }
+        
+        .element:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 12px rgba(0, 0, 0, 0.15);
+        }
+        
+        .element:active {
+            cursor: grabbing;
+            transform: scale(0.95);
+        }
+        
+        .element-dragging {
+            opacity: 0.7;
+            transform: rotate(5deg) scale(1.05);
+            z-index: 1000;
+        }
+        
+        .canvas-element {
+            position: absolute;
+            background: linear-gradient(145deg, #ffffff, #e6e6e6);
+            border: 2px solid #ddd;
+        }
+        
+        .canvas-element.combining {
+            animation: pulse 0.5s ease-in-out;
+        }
+        
+        .drop-zone {
+            border: 2px dashed #4f46e5;
+            background: rgba(79, 70, 229, 0.1);
+            border-radius: 16px;
+        }
+        
+        .discovery-notification {
+            animation: slideIn 0.5s ease-out;
+            background: linear-gradient(45deg, #f093fb 0%, #f5576c 100%);
+        }
+        
+        .sidebar {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-right: 1px solid rgba(255, 255, 255, 0.2);
+        }
+        
+        .main-canvas {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(5px);
+            position: relative;
+            overflow: hidden;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.1); }
+        }
+        
+        @keyframes slideIn {
+            from { transform: translateX(100%); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+        
+        @keyframes sparkle {
+            0%, 100% { transform: scale(1) rotate(0deg); opacity: 1; }
+            50% { transform: scale(1.2) rotate(180deg); opacity: 0.8; }
+        }
+        
+        .sparkle {
+            animation: sparkle 1s ease-in-out infinite;
+        }
+        
+        .element-fire { background: linear-gradient(145deg, #ff6b6b, #ee5a24); color: white; }
+        .element-water { background: linear-gradient(145deg, #74b9ff, #0984e3); color: white; }
+        .element-earth { background: linear-gradient(145deg, #a29bfe, #6c5ce7); color: white; }
+        .element-wind { background: linear-gradient(145deg, #fd79a8, #e84393); color: white; }
+        .element-new { background: linear-gradient(145deg, #fdcb6e, #e17055); color: white; }
+    </style>
+</head>
+<body class="overflow-hidden">
+    <div class="flex h-screen">
+        <!-- Sidebar -->
+        <div class="sidebar w-80 p-6 overflow-y-auto">
+            <div class="flex items-center justify-between mb-6">
+                <h1 class="text-2xl font-bold text-gray-800">DIVYGO.FUN</h1>
+                <div class="flex gap-2">
+                    <button id="soundToggle" class="p-2 rounded-lg bg-blue-100 hover:bg-blue-200 transition-colors">
+                        <i class="fas fa-volume-up text-blue-600"></i>
+                    </button>
+                    <button id="clearAll" class="p-2 rounded-lg bg-red-100 hover:bg-red-200 transition-colors">
+                        <i class="fas fa-trash text-red-600"></i>
+                    </button>
+                </div>
+            </div>
+            
+            <div class="mb-4">
+                <h3 class="text-sm font-semibold text-gray-600 mb-2 flex items-center gap-2">
+                    <i class="fas fa-atom"></i>
+                    Basic Elements
+                </h3>
+                <div id="basicElements" class="flex flex-wrap"></div>
+            </div>
+            
+            <div class="mb-4">
+                <h3 class="text-sm font-semibold text-gray-600 mb-2 flex items-center gap-2">
+                    <i class="fas fa-magic"></i>
+                    Discovered Elements (<span id="discoveredCount">0</span>)
+                </h3>
+                <div id="discoveredElements" class="flex flex-wrap max-h-96 overflow-y-auto"></div>
+            </div>
+        </div>
+        
+        <!-- Main Canvas -->
+        <div class="flex-1 main-canvas" id="canvas">
+            <div class="absolute top-4 right-4 z-10">
+                <div class="bg-white bg-opacity-20 backdrop-blur-sm rounded-lg p-3">
+                    <div class="text-white text-sm">
+                        <div>Combinations: <span id="combinationCount" class="font-bold">0</span></div>
+                        <div>First Discoveries: <span id="firstDiscoveryCount" class="font-bold">0</span></div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="absolute inset-0 flex items-center justify-center pointer-events-none">
+                <div class="text-white text-opacity-50 text-center">
+                    <i class="fas fa-magic text-4xl mb-4"></i>
+                    <p class="text-lg font-medium">Drag elements here to combine them</p>
+                    <p class="text-sm">Create infinite possibilities!</p>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Discovery Notification -->
+    <div id="discoveryNotification" class="fixed top-4 right-4 z-50 hidden">
+        <div class="discovery-notification rounded-lg p-4 text-white shadow-lg max-w-sm">
+            <div class="flex items-center gap-3">
+                <i class="fas fa-star sparkle text-yellow-300 text-xl"></i>
+                <div>
+                    <div class="font-bold">First Discovery!</div>
+                    <div id="discoveryText" class="text-sm opacity-90"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        class DivygoGame {
+            constructor() {
+                this.elements = new Set();
+                this.canvasElements = [];
+                this.draggedElement = null;
+                this.soundEnabled = true;
+                this.combinations = new Map();
+                this.firstDiscoveries = new Set();
+                this.stats = { combinations: 0, firstDiscoveries: 0 };
+                
+                this.init();
+                this.loadGame();
+            }
+            
+            init() {
+                // Initialize basic elements
+                const basicElements = ['Fire', 'Water', 'Earth', 'Wind'];
+                basicElements.forEach(element => this.elements.add(element));
+                
+                // Initialize combination rules
+                this.initCombinationRules();
+                
+                // Setup event listeners
+                this.setupEventListeners();
+                
+                // Render initial state
+                this.renderElements();
+                this.updateStats();
+            }
+            
+            initCombinationRules() {
+                const rules = {
+                    'Fire+Water': 'Steam',
+                    'Fire+Earth': 'Lava',
+                    'Fire+Wind': 'Energy',
+                    'Water+Earth': 'Mud',
+                    'Water+Wind': 'Wave',
+                    'Earth+Wind': 'Dust',
+                    'Steam+Earth': 'Geyser',
+                    'Steam+Wind': 'Cloud',
+                    'Lava+Water': 'Obsidian',
+                    'Lava+Wind': 'Volcano',
+                    'Energy+Water': 'Lightning',
+                    'Energy+Earth': 'Earthquake',
+                    'Mud+Fire': 'Brick',
+                    'Mud+Wind': 'Tornado',
+                    'Wave+Fire': 'Tsunami',
+                    'Wave+Earth': 'Beach',
+                    'Dust+Water': 'Clay',
+                    'Dust+Fire': 'Glass',
+                    'Cloud+Fire': 'Thunder',
+                    'Cloud+Earth': 'Mountain',
+                    'Lightning+Earth': 'Crystal',
+                    'Lightning+Water': 'Electric Fish',
+                    'Volcano+Water': 'Island',
+                    'Volcano+Wind': 'Ash',
+                    'Thunder+Water': 'Rain',
+                    'Thunder+Earth': 'Cave',
+                    'Mountain+Water': 'River',
+                    'Mountain+Fire': 'Dragon',
+                    'Crystal+Fire': 'Diamond',
+                    'Crystal+Water': 'Ice',
+                    'Rain+Earth': 'Plant',
+                    'Rain+Fire': 'Rainbow',
+                    'River+Fire': 'Mist',
+                    'River+Wind': 'Canyon',
+                    'Plant+Fire': 'Smoke',
+                    'Plant+Water': 'Flower',
+                    'Ice+Fire': 'Water',
+                    'Ice+Wind': 'Blizzard',
+                    'Diamond+Water': 'Gem',
+                    'Diamond+Wind': 'Sparkle',
+                    'Dragon+Water': 'Sea Serpent',
+                    'Dragon+Wind': 'Phoenix',
+                    'Flower+Fire': 'Perfume',
+                    'Flower+Wind': 'Pollen',
+                    'Smoke+Water': 'Fog',
+                    'Smoke+Wind': 'Smog',
+                    'Gem+Fire': 'Laser',
+                    'Gem+Earth': 'Treasure',
+                    'Phoenix+Water': 'Life',
+                    'Phoenix+Earth': 'Rebirth',
+                    'Life+Earth': 'Human',
+                    'Life+Water': 'Fish',
+                    'Human+Fire': 'Civilization',
+                    'Human+Water': 'Swimming',
+                    'Fish+Fire': 'Cooked Fish',
+                    'Fish+Wind': 'Flying Fish'
+                };
+                
+                Object.entries(rules).forEach(([key, value]) => {
+                    this.combinations.set(key, value);
+                    // Also add reverse combination
+                    const [a, b] = key.split('+');
+                    this.combinations.set(`${b}+${a}`, value);
+                });
+            }
+            
+            setupEventListeners() {
+                const canvas = document.getElementById('canvas');
+                const soundToggle = document.getElementById('soundToggle');
+                const clearAll = document.getElementById('clearAll');
+                
+                // Sound toggle
+                soundToggle.addEventListener('click', () => {
+                    this.soundEnabled = !this.soundEnabled;
+                    soundToggle.innerHTML = this.soundEnabled ? 
+                        '<i class="fas fa-volume-up text-blue-600"></i>' : 
+                        '<i class="fas fa-volume-mute text-red-600"></i>';
+                });
+                
+                // Clear all
+                clearAll.addEventListener('click', () => {
+                    if (confirm('Clear all elements from canvas?')) {
+                        this.clearCanvas();
+                    }
+                });
+                
+                // Canvas drop events
+                canvas.addEventListener('dragover', (e) => {
+                    e.preventDefault();
+                    canvas.classList.add('drop-zone');
+                });
+                
+                canvas.addEventListener('dragleave', (e) => {
+                    if (!canvas.contains(e.relatedTarget)) {
+                        canvas.classList.remove('drop-zone');
+                    }
+                });
+                
+                canvas.addEventListener('drop', (e) => {
+                    e.preventDefault();
+                    canvas.classList.remove('drop-zone');
+                    this.handleCanvasDrop(e);
+                });
+            }
+            
+            renderElements() {
+                const basicContainer = document.getElementById('basicElements');
+                const discoveredContainer = document.getElementById('discoveredElements');
+                
+                basicContainer.innerHTML = '';
+                discoveredContainer.innerHTML = '';
+                
+                const basicElements = ['Fire', 'Water', 'Earth', 'Wind'];
+                const discoveredElements = [...this.elements].filter(e => !basicElements.includes(e));
+                
+                // Render basic elements
+                basicElements.forEach(element => {
+                    const elementDiv = this.createElement(element, true);
+                    basicContainer.appendChild(elementDiv);
+                });
+                
+                // Render discovered elements
+                discoveredElements.forEach(element => {
+                    const elementDiv = this.createElement(element, false);
+                    discoveredContainer.appendChild(elementDiv);
+                });
+                
+                document.getElementById('discoveredCount').textContent = discoveredElements.length;
+            }
+            
+            createElement(name, isBasic = false) {
+                const div = document.createElement('div');
+                div.className = `element ${this.getElementClass(name, isBasic)}`;
+                div.draggable = true;
+                div.innerHTML = `<i class="${this.getElementIcon(name)}"></i> ${name}`;
+                
+                div.addEventListener('dragstart', (e) => {
+                    this.draggedElement = name;
+                    div.classList.add('element-dragging');
+                    e.dataTransfer.setData('text/plain', name);
+                });
+                
+                div.addEventListener('dragend', () => {
+                    div.classList.remove('element-dragging');
+                });
+                
+                return div;
+            }
+            
+            getElementClass(name, isBasic) {
+                if (isBasic) {
+                    const classes = {
+                        'Fire': 'element-fire',
+                        'Water': 'element-water',
+                        'Earth': 'element-earth',
+                        'Wind': 'element-wind'
+                    };
+                    return classes[name] || '';
+                }
+                return 'element-new';
+            }
+            
+            getElementIcon(name) {
+                const icons = {
+                    'Fire': 'fas fa-fire',
+                    'Water': 'fas fa-tint',
+                    'Earth': 'fas fa-mountain',
+                    'Wind': 'fas fa-wind',
+                    'Steam': 'fas fa-cloud',
+                    'Lava': 'fas fa-volcano',
+                    'Energy': 'fas fa-bolt',
+                    'Mud': 'fas fa-circle',
+                    'Wave': 'fas fa-water',
+                    'Dust': 'fas fa-cloud-dust',
+                    'Lightning': 'fas fa-bolt',
+                    'Crystal': 'fas fa-gem',
+                    'Dragon': 'fas fa-dragon',
+                    'Plant': 'fas fa-leaf',
+                    'Human': 'fas fa-user',
+                    'Life': 'fas fa-heart'
+                };
+                return icons[name] || 'fas fa-atom';
+            }
+            
+            handleCanvasDrop(e) {
+                const rect = e.currentTarget.getBoundingClientRect();
+                const x = e.clientX - rect.left;
+                const y = e.clientY - rect.top;
+                
+                this.addCanvasElement(this.draggedElement, x, y);
+                this.checkCombinations();
+            }
+            
+            addCanvasElement(name, x, y) {
+                const canvas = document.getElementById('canvas');
+                const element = document.createElement('div');
+                element.className = 'canvas-element element';
+                element.innerHTML = `<i class="${this.getElementIcon(name)}"></i> ${name}`;
+                element.style.left = `${x - 50}px`;
+                element.style.top = `${y - 20}px`;
+                element.draggable = true;
+                
+                // Store element data
+                const elementData = { name, element, x: x - 50, y: y - 20 };
+                this.canvasElements.push(elementData);
+                
+                // Add drag functionality
+                this.addCanvasElementDrag(element, elementData);
+                
+                canvas.appendChild(element);
+            }
+            
+            addCanvasElementDrag(element, elementData) {
+                let isDragging = false;
+                let startX, startY;
+                
+                element.addEventListener('mousedown', (e) => {
+                    isDragging = true;
+                    startX = e.clientX - elementData.x;
+                    startY = e.clientY - elementData.y;
+                    element.style.zIndex = '1000';
+                });
+                
+                document.addEventListener('mousemove', (e) => {
+                    if (!isDragging) return;
+                    
+                    elementData.x = e.clientX - startX;
+                    elementData.y = e.clientY - startY;
+                    element.style.left = `${elementData.x}px`;
+                    element.style.top = `${elementData.y}px`;
+                });
+                
+                document.addEventListener('mouseup', () => {
+                    if (isDragging) {
+                        isDragging = false;
+                        element.style.zIndex = '';
+                        this.checkCombinations();
+                    }
+                });
+            }
+            
+            checkCombinations() {
+                const canvas = document.getElementById('canvas');
+                const elements = this.canvasElements.slice();
+                
+                for (let i = 0; i < elements.length; i++) {
+                    for (let j = i + 1; j < elements.length; j++) {
+                        const elem1 = elements[i];
+                        const elem2 = elements[j];
+                        
+                        if (this.areElementsClose(elem1, elem2)) {
+                            const result = this.combineElements(elem1.name, elem2.name);
+                            if (result) {
+                                this.handleSuccessfulCombination(elem1, elem2, result);
+                                return; // Only one combination at a time
+                            }
+                        }
+                    }
+                }
+            }
+            
+            areElementsClose(elem1, elem2) {
+                const distance = Math.sqrt(
+                    Math.pow(elem1.x - elem2.x, 2) + Math.pow(elem1.y - elem2.y, 2)
+                );
+                return distance < 100;
+            }
+            
+            combineElements(name1, name2) {
+                // Check predefined combinations
+                let result = this.combinations.get(`${name1}+${name2}`) || 
+                           this.combinations.get(`${name2}+${name1}`);
+                
+                // If no predefined combination, generate one
+                if (!result) {
+                    result = this.generateCombination(name1, name2);
+                }
+                
+                return result;
+            }
+            
+            generateCombination(name1, name2) {
+                // Generate creative combinations using word elements
+                const prefixes = ['Super', 'Ultra', 'Mega', 'Hyper', 'Neo', 'Quantum', 'Cosmic', 'Divine'];
+                const suffixes = ['Force', 'Power', 'Energy', 'Spirit', 'Essence', 'Core', 'Soul', 'Heart'];
+                const compounds = ['Storm', 'Fusion', 'Nexus', 'Vortex', 'Sphere', 'Prism', 'Aura', 'Matrix'];
+                
+                const words1 = name1.toLowerCase().split(' ');
+                const words2 = name2.toLowerCase().split(' ');
+                const lastWord1 = words1[words1.length - 1];
+                const lastWord2 = words2[words2.length - 1];
+                
+                const rand = Math.random();
+                
+                if (rand < 0.3) {
+                    // Compound name
+                    return this.capitalize(`${lastWord1} ${lastWord2}`);
+                } else if (rand < 0.5) {
+                    // Prefix + compound
+                    const prefix = prefixes[Math.floor(Math.random() * prefixes.length)];
+                    const compound = compounds[Math.floor(Math.random() * compounds.length)];
+                    return `${prefix} ${compound}`;
+                } else if (rand < 0.7) {
+                    // Word + suffix
+                    const word = Math.random() < 0.5 ? lastWord1 : lastWord2;
+                    const suffix = suffixes[Math.floor(Math.random() * suffixes.length)];
+                    return this.capitalize(`${word} ${suffix}`);
+                } else {
+                    // Creative blend
+                    const blend1 = lastWord1.slice(0, Math.ceil(lastWord1.length / 2));
+                    const blend2 = lastWord2.slice(Math.floor(lastWord2.length / 2));
+                    return this.capitalize(blend1 + blend2);
+                }
+            }
+            
+            capitalize(str) {
+                return str.split(' ').map(word => 
+                    word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()
+                ).join(' ');
+            }
+            
+            handleSuccessfulCombination(elem1, elem2, result) {
+                // Remove combined elements
+                this.removeCanvasElement(elem1);
+                this.removeCanvasElement(elem2);
+                
+                // Add result element
+                const centerX = (elem1.x + elem2.x) / 2 + 50;
+                const centerY = (elem1.y + elem2.y) / 2 + 20;
+                this.addCanvasElement(result, centerX, centerY);
+                
+                // Track discovery
+                const isFirstDiscovery = !this.elements.has(result);
+                this.elements.add(result);
+                
+                if (isFirstDiscovery) {
+                    this.firstDiscoveries.add(result);
+                    this.showDiscoveryNotification(result);
+                    this.stats.firstDiscoveries++;
+                }
+                
+                this.stats.combinations++;
+                this.updateStats();
+                this.renderElements();
+                this.saveGame();
+                
+                // Play sound
+                if (this.soundEnabled) {
+                    this.playSound(isFirstDiscovery ? 'discovery' : 'combine');
+                }
+            }
+            
+            removeCanvasElement(elementData) {
+                const index = this.canvasElements.indexOf(elementData);
+                if (index > -1) {
+                    this.canvasElements.splice(index, 1);
+                    elementData.element.remove();
+                }
+            }
+            
+            showDiscoveryNotification(elementName) {
+                const notification = document.getElementById('discoveryNotification');
+                const text = document.getElementById('discoveryText');
+                
+                text.textContent = `You discovered "${elementName}"!`;
+                notification.classList.remove('hidden');
+                
+                setTimeout(() => {
+                    notification.classList.add('hidden');
+                }, 3000);
+            }
+            
+            updateStats() {
+                document.getElementById('combinationCount').textContent = this.stats.combinations;
+                document.getElementById('firstDiscoveryCount').textContent = this.stats.firstDiscoveries;
+            }
+            
+            clearCanvas() {
+                this.canvasElements.forEach(elem => elem.element.remove());
+                this.canvasElements = [];
+            }
+            
+            playSound(type) {
+                // Create audio context for sound effects
+                const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                const oscillator = audioContext.createOscillator();
+                const gainNode = audioContext.createGain();
+                
+                oscillator.connect(gainNode);
+                gainNode.connect(audioContext.destination);
+                
+                if (type === 'discovery') {
+                    // Play ascending notes for discovery
+                    oscillator.frequency.setValueAtTime(523.25, audioContext.currentTime); // C5
+                    oscillator.frequency.setValueAtTime(659.25, audioContext.currentTime + 0.1); // E5
+                    oscillator.frequency.setValueAtTime(783.99, audioContext.currentTime + 0.2); // G5
+                } else {
+                    // Play single note for regular combination
+                    oscillator.frequency.setValueAtTime(440, audioContext.currentTime); // A4
+                }
+                
+                gainNode.gain.setValueAtTime(0.1, audioContext.currentTime);
+                gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.3);
+                
+                oscillator.start(audioContext.currentTime);
+                oscillator.stop(audioContext.currentTime + 0.3);
+            }
+            
+            saveGame() {
+                const gameState = {
+                    elements: [...this.elements],
+                    firstDiscoveries: [...this.firstDiscoveries],
+                    stats: this.stats
+                };
+                localStorage.setItem('divygo-game', JSON.stringify(gameState));
+            }
+            
+            loadGame() {
+                const saved = localStorage.getItem('divygo-game');
+                if (saved) {
+                    const gameState = JSON.parse(saved);
+                    this.elements = new Set(gameState.elements || []);
+                    this.firstDiscoveries = new Set(gameState.firstDiscoveries || []);
+                    this.stats = gameState.stats || { combinations: 0, firstDiscoveries: 0 };
+                    
+                    // Ensure basic elements are always present
+                    ['Fire', 'Water', 'Earth', 'Wind'].forEach(e => this.elements.add(e));
+                    
+                    this.renderElements();
+                    this.updateStats();
+                }
+            }
+        }
+        
+        // Initialize game when page loads
+        document.addEventListener('DOMContentLoaded', () => {
+            new DivygoGame();
+        });
+    </script>
+</body>
+</html>
